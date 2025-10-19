@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Smart Summarizer</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root{
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #0b1220;
+      --muted: #556070;
+      --accent: #3b82f6;
+      --button-text: #ffffff;
+      --shadow: 0 6px 18px rgba(15,23,42,0.08);
+      --radius: 14px;
+    }
+
+    [data-theme="dark"]{
+      --bg: #0b1220;
+      --card: #0f1724;
+      --text: #e6eef8;
+      --muted: #9fb0d3;
+      --accent: #60a5fa;
+      --button-text: #04263a;
+      --shadow: 0 6px 18px rgba(2,6,23,0.6);
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      background:linear-gradient(180deg, var(--bg), var(--bg));
+      color:var(--text);
+      padding:28px;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+    }
+
+    .app{
+      max-width:900px;
+      margin:0 auto;
+    }
+
+    header{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:18px;
+    }
+    header h1{
+      margin:0;
+      font-size:20px;
+      letter-spacing:0.2px;
+    }
+    .controls{
+      display:flex;
+      gap:8px;
+      align-items:center;
+    }
+
+    .toggle {
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background:var(--card);
+      padding:6px;
+      border-radius:999px;
+      box-shadow:var(--shadow);
+    }
+    .toggle button{
+      border:0;
+      background:transparent;
+      padding:6px 10px;
+      border-radius:10px;
+      cursor:pointer;
+      color:var(--muted);
+      font-weight:600;
+      font-size:14px;
+    }
+    .toggle button.active{
+      background:linear-gradient(90deg, rgba(59,130,246,0.12), rgba(96,165,250,0.08));
+      color:var(--accent);
+    }
+
+    .card{
+      background:var(--card);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:18px;
+      margin-bottom:16px;
+    }
+
+    textarea{
+      width:100%;
+      min-height:170px;
+      resize:vertical;
+      border-radius:12px;
+      border:1px solid rgba(15,23,42,0.06);
+      padding:12px;
+      font-size:15px;
+      background:transparent;
+      color:var(--text);
+    }
+
+    .row{
+      display:flex;
+      gap:12px;
+      margin-top:12px;
+      align-items:center;
+    }
+
+    .btn{
+      background:var(--accent);
+      color:var(--button-text);
+      padding:10px 18px;
+      border-radius:10px;
+      border:0;
+      cursor:pointer;
+      font-weight:700;
+      box-shadow:0 8px 20px rgba(59,130,246,0.12);
+    }
+    .btn.secondary{
+      background:transparent;
+      color:var(--accent);
+      border:1px solid rgba(59,130,246,0.12);
+      box-shadow:none;
+      font-weight:700;
+    }
+
+    #output{
+      white-space:pre-wrap;
+      line-height:1.55;
+      font-size:15px;
+      color:var(--text);
+      margin-top:10px;
+    }
+
+    footer{
+      margin-top:10px;
+      color:var(--muted);
+      font-size:13px;
+      text-align:center;
+    }
+
+    @media (max-width:640px){
+      .row{flex-direction:column; align-items:stretch}
+      header{flex-direction:column;align-items:flex-start;gap:12px}
+    }
+  </style>
+</head>
+<body>
+  <div class="app" id="appRoot">
+    <header>
+      <h1>Smart Summarizer</h1>
+      <div class="controls">
+        <div class="toggle" title="Theme">
+          <button id="lightBtn">🌞 Light</button>
+          <button id="darkBtn">🌙 Dark</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="card">
+      <label for="inputText"><strong>Enter text to summarize</strong></label>
+      <textarea id="inputText" placeholder="Paste or type your text here..."></textarea>
+
+      <div class="row">
+        <button class="btn" id="summarizeBtn">Summarize</button>
+        <button class="btn secondary" id="clearBtn">Clear</button>
+        <div style="margin-left:auto;color:var(--muted);font-size:14px">Mode: <span id="modeLabel">Offline (fallback)</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <strong>Summary</strong>
+      <div id="output">Your summary will appear here.</div>
+    </section>
+
+    <footer class="card" style="text-align:center">
+      Tip: When online and connected to a safe server/API, the app can use AI for better summaries. This UI will stay stylish offline too.
+    </footer>
+  </div>
+
+  <script>
+    // Theme (dark/light) toggle
+    const root = document.documentElement;
+    const lightBtn = document.getElementById('lightBtn');
+    const darkBtn = document.getElementById('darkBtn');
+
+    function applyTheme(theme){
+      if(theme === 'dark'){
+        document.body.setAttribute('data-theme','dark');
+        darkBtn.classList.add('active');
+        lightBtn.classList.remove('active');
+      } else {
+        document.body.removeAttribute('data-theme');
+        lightBtn.classList.add('active');
+        darkBtn.classList.remove('active');
+      }
+      localStorage.setItem('summ-theme', theme);
+    }
+
+    // load saved theme or system preference
+    (function(){
+      const saved = localStorage.getItem('summ-theme');
+      if(saved) applyTheme(saved);
+      else {
+        // respect system preference
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        applyTheme(prefersDark ? 'dark' : 'light');
+      }
+    })();
+
+    lightBtn.onclick = () => applyTheme('light');
+    darkBtn.onclick = () => applyTheme('dark');
+
+    // Summarizer logic
+    const input = document.getElementById('inputText');
+    const out = document.getElementById('output');
+    const summarizeBtn = document.getElementById('summarizeBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const modeLabel = document.getElementById('modeLabel');
+
+    // Basic list of stopwords (Tagalog/English minimal)
+    const stopwords = new Set([
+      'the','and','is','in','at','of','a','an','to','for','on','with','that','this','it','as','are','was','were',
+      'ang','sa','ng','mga','at','ay','si','ni','may','ito','iyon','para','kung','ay','sa','na'
+    ]);
+
+    function tokenizeWords(text){
+      return text
+        .toLowerCase()
+        .replace(/[^a-zA-Z\u00C0-\u017F0-9\s]/g,' ')
+        .split(/\s+/)
+        .filter(Boolean);
+    }
+
+    // Simple sentence scoring summarizer (works offline)
+    function offlineSmartSummarize(text, maxSentences = 3){
+      if(!text) return '';
+      // Split into sentences (basic)
+      const sentences = text.match(/[^.!?]+[.!?]*/g) || [text];
+      // build word freq
+      const words = tokenizeWords(text);
+      const freq = {};
+      words.forEach(w=>{
+        if(stopwords.has(w)) return;
+        freq[w] = (freq[w] || 0) + 1;
+      });
+      // score sentences
+      const scored = sentences.map(s => {
+        const sWords = tokenizeWords(s);
+        let score = 0;
+        sWords.forEach(w => { if(freq[w]) score += freq[w]; });
+        // penalize super short sentences
+        if(sWords.length < 3) score *= 0.5;
+        return { sentence: s.trim(), score };
+      });
+      scored.sort((a,b)=>b.score - a.score);
+      const top = scored.slice(0, Math.min(maxSentences, scored.length)).map(s=>s.sentence);
+      // preserve original order
+      top.sort((a,b)=> text.indexOf(a) - text.indexOf(b));
+      return top.join(' ').replace(/\s+/g,' ').trim();
+    }
+
+    async function summarize(){
+      const text = input.value.trim();
+      if(!text){
+        out.innerText = 'Please enter some text first.';
+        return;
+      }
+
+      // If online and you set up a server endpoint, you could use it here.
+      // For demo we use offline smart summarizer. Show mode.
+      if(navigator.onLine){
+        modeLabel.innerText = 'Online — using local smart summarizer (no API configured)';
+      } else {
+        modeLabel.innerText = 'Offline (fallback)';
+      }
+
+      out.innerText = 'Summarizing...';
+      // use offline smart summarizer
+      await new Promise(r => setTimeout(r, 300)); // small delay for UX
+      const summary = offlineSmartSummarize(text, 3);
+      out.innerText = summary || 'Could not create a summary.';
+    }
+
+    summarizeBtn.addEventListener('click', summarize);
+    clearBtn.addEventListener('click', ()=>{
+      input.value = '';
+      out.innerText = 'Your summary will appear here.';
+    });
+
+    // Register service worker for offline caching
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js')
+        .then(() => console.log('Service worker registered'))
+        .catch(err => console.log('Service worker failed', err));
+    }
+  </script>
+</body>
+</html>
